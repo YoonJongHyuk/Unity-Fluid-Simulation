@@ -11,7 +11,7 @@ public class Simulation : MonoBehaviour
 {
     public list particles = new list();
 
-    // Import simulation variables from Config.cs
+    // Config.cs에서 설정값 불러오기
     public static int N = Config.N;
     public static float SIM_W = Config.SIM_W;
     public static float BOTTOM = Config.BOTTOM;
@@ -30,10 +30,10 @@ public class Simulation : MonoBehaviour
     public static float DT = Config.DT;
     public static float WALL_POS = Config.WALL_POS;
 
-    // Base Particle Object
+    // 기본 입자 프리팹
     public GameObject Base_Particle;
 
-    // Spatial Partitioning Grid Variables
+    // 공간 분할을 위한 그리드 변수
     public int grid_size_x = 60;
     public int grid_size_y = 30;
     public list[,] grid;
@@ -46,7 +46,7 @@ public class Simulation : MonoBehaviour
     {
         Base_Particle = GameObject.Find("Base_Particle");
 
-        // Initialize spatial partitioning grid
+        // 그리드 초기화
         grid = new list[grid_size_x, grid_size_y];
         for (int i = 0; i < grid_size_x; i++)
         {
@@ -57,7 +57,7 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    // Utility variables
+    // 유틸리티용 변수들
     private float density;
     private float density_near;
     private float dist;
@@ -73,36 +73,23 @@ public class Simulation : MonoBehaviour
     private vector2 viscosity_force;
     private float time;
 
+    // 밀도 계산
     public void calculate_density(list particles)
     {
-        /*
-            Calculates density of particles
-            Density is calculated by summing the relative distance of neighboring particles
-            We distinguish density and near density to avoid particles to collide with each other
-            which creates instability
-
-        Args:
-            particles (list[Particle]): list of particles
-        */
-
-        // For each particle
         foreach (Particle p in particles)
         {
             density = 0.0f;
             density_near = 0.0f;
 
-            // for each particle in the 9 neighboring cells in the spatial partitioning grid
+            // 주변 셀들 탐색
             for (int i = p.grid_x - 1; i <= p.grid_x + 1; i++)
             {
                 for (int j = p.grid_y - 1; j <= p.grid_y + 1; j++)
                 {
-                    // If the cell is in the grid
                     if (i >= 0 && i < grid_size_x && j >= 0 && j < grid_size_y)
                     {
-                        // For each particle in the cell
                         foreach (Particle n in grid[i, j])
                         {
-                            // Calculate distance between particles
                             dist = Vector2.Distance(p.pos, n.pos);
 
                             if (dist < R)
@@ -113,7 +100,6 @@ public class Simulation : MonoBehaviour
                                 n.rho += normal_distance * normal_distance;
                                 n.rho_near += normal_distance * normal_distance * normal_distance;
 
-                                // Add n to p's neighbors for later use
                                 p.neighbours.Add(n);
                             }
                         }
@@ -125,18 +111,9 @@ public class Simulation : MonoBehaviour
         }
     }
 
+    // 압력 생성
     public void create_pressure(list particles)
     {
-        /*
-            Calculates pressure force of particles
-            Neighbors list and pressure have already been calculated by calculate_density
-            We calculate the pressure force by summing the pressure force of each neighbor
-            and apply it in the direction of the neighbor
-
-        Args:
-            particles (list[Particle]): list of particles
-        */
-
         foreach (Particle p in particles)
         {
             pressure_force = vector2.zero;
@@ -156,16 +133,9 @@ public class Simulation : MonoBehaviour
         }
     }
 
+    // 점성 계산
     public void calculate_viscosity(list particles)
     {
-        /*
-        Calculates the viscosity force of particles
-        Force = (relative distance of particles)*(viscosity weight)*(velocity difference of particles)
-        Velocity difference is calculated on the vector between the particles
-
-        Args:
-            particles (list[Particle]): list of particles
-        */
         foreach (Particle p in particles)
         {
             foreach (Particle n in p.neighbours)
@@ -185,11 +155,9 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    // Update is called once per frame
+    // 프레임마다 실행
     void Update()
     {
-
-        // Add children GameObjects to particles list
         time = Time.realtimeSinceStartup;
         particles.Clear();
         foreach (Transform child in transform)
@@ -197,7 +165,7 @@ public class Simulation : MonoBehaviour
             particles.Add(child.GetComponent<Particle>());
         }
 
-        // Assign particles to spatial partitioning grid
+        // 그리드 초기화
         for (int i = 0; i < grid_size_x; i++)
         {
             for (int j = 0; j < grid_size_y; j++)
@@ -205,51 +173,33 @@ public class Simulation : MonoBehaviour
                 grid[i, j].Clear();
             }
         }
+
+        // 입자 그리드 할당
         foreach (Particle p in particles)
         {
-            // Assign grid_x and grid_y using x_min y_min x_max y_max
             p.grid_x = (int)((p.pos.x - x_min) / (x_max - x_min) * grid_size_x);
             p.grid_y = (int)((p.pos.y - y_min) / (y_max - y_min) * grid_size_y);
 
-            // Add particle to grid if it is within bounds
             if (p.grid_x >= 0 && p.grid_x < grid_size_x && p.grid_y >= 0 && p.grid_y < grid_size_y)
             {
                 grid[p.grid_x, p.grid_y].Add(p);
             }
         }
-        time = Time.realtimeSinceStartup - time;
-        //Debug.Log("Time to assign particles to grid: " + time);
 
-        time = Time.realtimeSinceStartup;
+        // 상태 업데이트
         foreach (Particle p in particles)
         {
             p.UpdateState();
         }
 
-        time = Time.realtimeSinceStartup - time;
-        //Debug.Log("Time to update particles: " + time);
-
-        time = Time.realtimeSinceStartup;
         calculate_density(particles);
-        time = Time.realtimeSinceStartup - time;
-        //Debug.Log("Time to calculate density: " + time);
 
-        time = Time.realtimeSinceStartup;
         foreach (Particle p in particles)
         {
             p.CalculatePressure();
         }
-        time = Time.realtimeSinceStartup - time;
-        //Debug.Log("Time to calculate pressure: " + time);
 
-        time = Time.realtimeSinceStartup;
         create_pressure(particles);
-        time = Time.realtimeSinceStartup - time;
-        //Debug.Log("Time to create pressure: " + time);
-
-        time = Time.realtimeSinceStartup;
         calculate_viscosity(particles);
-        time = Time.realtimeSinceStartup - time;
-        //Debug.Log("Time to calculate viscosity: " + time);
     }
 }

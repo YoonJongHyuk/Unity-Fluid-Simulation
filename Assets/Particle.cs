@@ -1,3 +1,4 @@
+// Particle.cs
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -9,27 +10,9 @@ using static Config;
 
 public class Particle : MonoBehaviour
 {
-    /*
-    A single particle of the simulated fluid
-    Attributes:
-        x_pos: x position of the particle
-        y_pos: y position of the particle
-        previous_x_pos: x position of the particle in the previous frame
-        previous_y_pos: y position of the particle in the previous frame
-        visual_x_pos: x position of the particle that is shown on the screen
-        visual_y_pos: y position of the particle that is shown on the screen
-        rho: density of the particle
-        rho_near: near density of the particle, used to avoid collisions between particles
-        press: pressure of the particle
-        press_near: near pressure of the particle, used to avoid collisions between particles
-        neighbors: list of the particle's neighbors
-        x_vel: x velocity of the particle
-        y_vel: y velocity of the particle
-        x_force: x force applied to the particle
-        y_force: y force applied to the particle
-    */
+    // 하나의 유체 입자 객체
 
-    // Import simulation variables from Config.cs
+    // Config.cs에서 불러온 설정값
     public static int N = Config.N;
     public static float SIM_W = Config.SIM_W;
     public static float BOTTOM = Config.BOTTOM;
@@ -48,73 +31,69 @@ public class Particle : MonoBehaviour
     public static float DT = Config.DT;
     public static float WALL_POS = Config.WALL_POS;
 
-    // Physics variables
+    // 물리 변수들
     public vector2 pos;
     public vector2 previous_pos;
     public vector2 visual_pos;
-    public float rho = 0.0f;
-    public float rho_near = 0.0f;
-    public float press = 0.0f;
-    public float press_near = 0.0f;
-    public list neighbours = new list();
-    public vector2 vel = vector2.zero;
-    public vector2 force = new vector2(0f, -G);
-    public float velocity = 0.0f;
+    public float rho = 0.0f; // 밀도
+    public float rho_near = 0.0f; // 근접 밀도
+    public float press = 0.0f; // 압력
+    public float press_near = 0.0f; // 근접 압력
+    public list neighbours = new list(); // 이웃 입자들
+    public vector2 vel = vector2.zero; // 속도
+    public vector2 force = new vector2(0f, -G); // 힘
+    public float velocity = 0.0f; // 속도 크기
 
-    // Spatial partitioning position in grid
+    // 격자 위치
     public int grid_x;
     public int grid_y;
 
     void Start()
     {
-        // Set initial position
+        // 초기 위치 설정
         pos = transform.position;
         previous_pos = pos;
         visual_pos = pos;
     }
 
-    // Update is called once per frame
+    // 프레임마다 호출됨
     public void UpdateState()
     {
-        // Reset previous position
         previous_pos = pos;
 
-        // Apply force using Newton's second law and Euler integration with mass = 1
+        // 힘 적용 (Euler integration)
         vel += force * Time.deltaTime * DT;
 
-        // Move particle according to its velocity using Euler integration
+        // 속도에 따라 위치 이동
         pos += vel * Time.deltaTime * DT;
 
-        // Update visual position
+        // 화면 표시 위치 갱신
         visual_pos = pos;
         transform.position = visual_pos;
 
-        // Reset force
+        // 힘 초기화 (중력만 적용)
         force = new vector2(0, -G);
 
-        // Define velocity using Euler integration
+        // 속도 재계산
         vel = (pos - previous_pos) / Time.deltaTime / DT;
-
-        // Calculate velocity
         velocity = vel.magnitude;
 
-        // Set to MAX_VEL if velocity is greater than MAX_VEL
+        // 속도 제한
         if (velocity > MAX_VEL)
         {
             vel = vel.normalized * MAX_VEL;
         }
 
-        // Reset density
+        // 밀도 초기화
         rho = 0.0f;
         rho_near = 0.0f;
 
-        // Reset neighbors
+        // 이웃 초기화
         neighbours = new list();
 
-        // If pos under BOTTOM, delete particle
+        // 바닥 아래로 내려갔으면 제거
         if (pos.y < BOTTOM)
         {
-            // If name not Base_Particle, delete particle
             if (name != "Base_Particle")
             {
                 Destroy(gameObject);
@@ -122,34 +101,35 @@ public class Particle : MonoBehaviour
         }
     }
 
+    // 압력 계산 함수
     public void CalculatePressure()
     {
         press = K * (rho - REST_DENSITY);
         press_near = K_NEAR * rho_near;
     }
 
+    // 벽 충돌 처리
     void OnCollisionStay2D(Collision2D collision)
     {
-        // Calculate the normal vector of the collision
+        // 충돌 방향 벡터
         vector2 normal = collision.contacts[0].normal;
 
-        // Calculate the velocity of the particle in the normal direction
+        // 충돌 방향 속도
         float vel_normal = Vector2.Dot(vel, normal);
 
-        // If the velocity is positive, the particle is moving away from the wall
+        // 벽에서 떨어지는 중이면 무시
         if (vel_normal > 0)
         {
             return;
         }
 
-        // Calculate the velocity of the particle in the tangent direction
+        // 접선 방향 속도 계산
         vector2 vel_tangent = vel - normal * vel_normal;
 
-        // Calculate the new velocity of the particle
+        // 감쇠 반사 적용
         vel = vel_tangent - normal * vel_normal * WALL_DAMP;
 
-        // Move the particle out of the wall
+        // 벽에서 튀어나오게 위치 조정
         pos = collision.contacts[0].point + normal * WALL_POS;
     }
-
 }
